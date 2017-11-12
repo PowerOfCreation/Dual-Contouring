@@ -8,9 +8,9 @@ public class VoxelObject : MonoBehaviour
     MeshFilter meshFilter;
     Mesh mesh;
 
-    const int sizeX = 2;
-    const int sizeY = 2;
-    const int sizeZ = 2;
+    const int sizeX = 3;
+    const int sizeY = 3;
+    const int sizeZ = 3;
 
     //All Voxels this object contains
     Voxel[,,] voxels = new Voxel[sizeX, sizeY, sizeZ];
@@ -60,6 +60,13 @@ public class VoxelObject : MonoBehaviour
 
     public void DualContouring()
     {
+        //more or less random array sizes
+        Vector3[] newVertices = new Vector3[99];
+        Vector2[] newUV = new Vector2[99];
+        int[] newTriangles = new int[99];
+
+        int faceSize = 0;
+
         for (int x = 0; x < sizeX - 1; x++)
         {
             for (int y = 0; y < sizeY - 1; y++)
@@ -110,12 +117,7 @@ public class VoxelObject : MonoBehaviour
                             crossingCorners[(int) edge.y] = true;
                         }
                     }
-                    //more or less random array sizes
-                    Vector3[] newFace = new Vector3[8];
-                    Vector2[] newUV = new Vector2[8];
-                    int[] newTriangles = new int[6*3];
-
-                    int faceSize = 0;
+ 
                     //Add all Corners who already are part in a Mesh - which still makes it possible they are getting used again but only when a different corners determines them as suitable
                     bool[] processedCorners = new bool[8];
 
@@ -131,7 +133,7 @@ public class VoxelObject : MonoBehaviour
                         Vector3 location = corners[i];
 
                         //some values to start with finding the 2 closest corners
-                        float lowestDistance = 10f, secondLowestDistance = 10f;
+                        float lowestDistance = Mathf.Infinity, secondLowestDistance = Mathf.Infinity;
                         int corner1 = 0, corner2 = 0;
                         //find the the 2 closest corners to form a triangle with
                         for (int corner = 0; corner < 8; ++corner)
@@ -157,36 +159,39 @@ public class VoxelObject : MonoBehaviour
                                 }
                             }
                         }
-                        //form a triangle
-                        AddCorner(ref newFace, ref newUV, ref newTriangles, ref faceSize, x, y, z, corner1);
-                        AddCorner(ref newFace, ref newUV, ref newTriangles, ref faceSize, x, y, z, corner2);
-                        AddCorner(ref newFace, ref newUV, ref newTriangles, ref faceSize, x, y, z, i);
-                        //all corners have been used once in a mesh so don't explicitly try again to form a triangle unless a different corners needs corners to form a mesh
-                        processedCorners[corner1] = true;
-                        processedCorners[corner2] = true;
-                        processedCorners[i] = true;
-
+                        if (lowestDistance != Mathf.Infinity && secondLowestDistance != Mathf.Infinity)
+                        {
+                            //form a triangle
+                            AddCorner(ref newVertices, ref newUV, ref newTriangles, ref faceSize, x, y, z, corner1);
+                            AddCorner(ref newVertices, ref newUV, ref newTriangles, ref faceSize, x, y, z, corner2);
+                            AddCorner(ref newVertices, ref newUV, ref newTriangles, ref faceSize, x, y, z, i);
+                            //all corners have been used once in a mesh so don't explicitly try again to form a triangle unless a different corners needs corners to form a mesh
+                            processedCorners[corner1] = true;
+                            processedCorners[corner2] = true;
+                            processedCorners[i] = true;
+                        }
                     }
-                    //give the mesh to the Render-Component
-                    mesh.vertices = newFace;
-                    mesh.uv = newUV;
-                    mesh.triangles = newTriangles;
                 }
             }
         }
+        //give the mesh to the Render-Component
+        mesh.vertices = newVertices;
+        mesh.uv = newUV;
+        mesh.triangles = newTriangles;
+        mesh.RecalculateNormals();
     }
 
     //Adds a corner to the Array which gets pushed to the GPU
-    public void AddCorner(ref Vector3[] newFace, ref Vector2[] newUV, ref int [] newTriangles, ref int faceSize, int x, int y, int z, int corner)
+    public void AddCorner(ref Vector3[] newVertices, ref Vector2[] newUV, ref int [] newTriangles, ref int faceSize, int x, int y, int z, int corner)
     {
         int xPos = (int)(x + corners[corner].x);
         int yPos = (int)(y + corners[corner].y);
         int zPos = (int)(z + corners[corner].z);
 
         float distance = voxels[xPos, yPos, zPos].distance;
-        Vector3 positonOfCorner = new Vector3(xPos, yPos, zPos) + (distance * (new Vector3(corners[corner].x, corners[corner].y, corners[corner].z) - new Vector3(0.5f, 0.5f, 0.5f)).normalized);
+        Vector3 positonOfCorner = new Vector3(xPos, yPos, zPos) + (distance * (new Vector3(corners[corner].x, corners[corner].y, corners[corner].z) + new Vector3(0.5f, 0.5f, 0.5f)).normalized);
 
-        newFace[faceSize] = positonOfCorner;
+        newVertices[faceSize] = positonOfCorner;
         newUV[faceSize] = new Vector2(0, 0);
         newTriangles[faceSize] = faceSize;
 
@@ -215,6 +220,10 @@ public class VoxelObject : MonoBehaviour
                         voxels[x, y, z].distance = 5f;
                     }
                     else if (x == 1 && y == 0 && z == 0)
+                    {
+                        voxels[x, y, z].distance = 5f;
+                    }
+                    else if (x == 1 && y == 0 && z == 1)
                     {
                         voxels[x, y, z].distance = 5f;
                     }
